@@ -8,8 +8,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 public class APIResponse<T> {
-    //TODO: Make Response body time out for email code
-    private int code;
+    private Integer code;
     private String message;
     private T body;
 }
