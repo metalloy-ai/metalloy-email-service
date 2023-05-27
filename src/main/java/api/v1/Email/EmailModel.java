@@ -1,40 +1,37 @@
 package api.v1.Email;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.NotEmpty;
-import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
-import lombok.Builder;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import java.io.Serializable;
+import java.util.Date;
+import java.util.Random;
 
 @Data
-@Builder
 @AllArgsConstructor
 @NoArgsConstructor
-@Document(collection = "core-email.auth")
-public class EmailModel implements Serializable {
+@EqualsAndHashCode(callSuper = true)
+@Document(collection = "auth")
+public class EmailModel extends EmailCreate {
     @Id
-    @NotNull
-    @NotEmpty
-    @JsonProperty("user_id")
-    private String userId;
+    @JsonProperty("_id")
+    private String id;
+    private String code;
+    @Indexed(name = "expire_1", expireAfterSeconds = 180)
+    private Date expire;
 
-    @NotNull
-    @NotEmpty
-    private String username;
+    public EmailModel(EmailCreate emailCreate) {
+        super(emailCreate.getUserId(), emailCreate.getUsername(), emailCreate.getEmail());
+        this.id = getUserId();
+    }
 
-    @Email
-    @NotNull
-    @NotEmpty
-    private String email;
-
-    @NotNull
-    @NotEmpty
-    private String type;
+    public void generateCodeAndExpire() {
+        this.code = String.valueOf(new Random().nextInt(900000) + 100000);
+        this.expire = new Date();
+    }
 }
