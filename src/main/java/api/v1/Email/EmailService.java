@@ -1,7 +1,12 @@
 package api.v1.Email;
 
-import api.v1.Utility.APIResponse;
+import jakarta.validation.Valid;
+import reactor.core.publisher.Mono;
+
+import java.io.IOException;
 
 public interface EmailService {
-    APIResponse<Void> sendEmail(EmailModel email);
+    Mono<EmailModel> sendAuthEmail(@Valid EmailCreate email) throws IOException;
+
+    Mono<EmailModel> verifyEmail(String token, String userId);
 }
