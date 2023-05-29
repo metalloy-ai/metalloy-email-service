@@ -1,12 +1,18 @@
 package api.v1.Email;
 
 import java.io.IOException;
+import java.time.Duration;
 
+import api.v1.Email.Model.Auth.AuthCreate;
+import api.v1.Email.Model.Auth.AuthLog;
+import api.v1.Utility.EmailUtilities;
+import api.v1.Email.Model.Auth.Auth;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.redis.core.ReactiveRedisOperations;
 import org.springframework.stereotype.Service;
 
 import com.sendgrid.helpers.mail.objects.Content;
@@ -24,75 +30,64 @@ public class EmailServiceImpl implements EmailService {
     private final Logger LOGGER;
     private final Email FROM;
     private final SendGrid SG;
+    private final ReactiveRedisOperations<String, Auth> redisOperations;
 
     @Autowired
     public EmailServiceImpl (
             EmailRepository emailRepository,
             @Value("${SG.FROM}") String from,
-            @Value("${SG.API.KEY}") String apiKey
+            @Value("${SG.API.KEY}") String apiKey,
+            ReactiveRedisOperations<String, Auth> redisOperations
     ) {
         LOGGER = LoggerFactory.getLogger(EmailServiceImpl.class);
-        SG = new SendGrid(apiKey);
-        FROM = new Email(from);
+        FROM   = new Email(from);
+        SG     = new SendGrid(apiKey);
+        this.redisOperations = redisOperations;
         this.emailRepository = emailRepository;
     }
-    
-    @Override
-    public Mono<EmailModel> sendAuthEmail(EmailCreate email) throws IOException {
-        String MALCONTENT =
-                "<table cellpadding=\"0\" cellspacing=\"0\" style=\"vertical-align: -webkit-baseline-middle; font-size: medium; font-family: Arial;\">" +
-                "<tbody>" +
-                "<span>Your auth code expires in <b>3 min</b></span>" +
-                "<tr>" +
-                "<td width=\"190\">" +
-                "<img src=\"https://app.logo.com/app/api/v2/images?logo=logo_119e65c0-fd71-40fb-8d96-22216b890a8c&amp;u=2023-04-25T09%3A28%3A22.439Z&amp;format=png&amp;fit=contain&amp;quality=100&amp;margins=100&amp;height=285&amp;width=380\" role=\"presentation\" width=\"190\" style=\"max-width: 190px; display: inline; text-align: left; border-radius: 5px;\">" +
-                "</td>" +
-                "<td>" +
-                "<table cellpadding=\"20\" cellspacing=\"0\" style=\"vertical-align: -webkit-baseline-middle; font-size: medium; font-family: Arial; width: 100%;\">" +
-                "<tbody>" +
-                "<tr>" +
-                "<td>" +
-                "<p style=\"margin: 0px; font-size: 15px; font-weight:bold; color: #111; line-height: 20px;\">" +
-                "<span>MAIL Service</span>" +
-                "</p>" +
-                "<p style=\"margin: 0px; color: #687087; font-size: 14px; line-height: 20px;\">" +
-                "<span>domain metalloy.tech</span>" +
-                "</p>" +
-                "<p style=\"margin: 0px; color: #687087; font-size: 14px; line-height: 20px;\">" +
-                "</p>" +
-                "</td>" +
-                "</tr>" +
-                "</tbody>" +
-                "</table>" +
-                "</td>" +
-                "</tr>" +
-                "</tbody>" +
-                "</table>";
-        EmailModel emailModel = new EmailModel(email);
-        emailModel.generateCodeAndExpire();
-        Email to = new Email(email.getEmail());
-        String SUBJECT = "Authorization Code: "+ emailModel.getCode();
-        Mail mail = new Mail(FROM, SUBJECT, to, new Content("text/html", MALCONTENT));
 
-        Request request = new Request();
-        request.setMethod(Method.POST);
-        request.setEndpoint("mail/send");
-        request.setBody(mail.build());
-
-        Response sendGridResponse = SG.api(request);
-        if (sendGridResponse.getStatusCode() >= 200 && sendGridResponse.getStatusCode() < 300) {
-            LOGGER.info("EmailModel sent successfully to: {}", email.getEmail());
-            return emailRepository.save(emailModel);
-        }
-
-        String message = "Error sending email: {}" + sendGridResponse.getBody();
-        LOGGER.error(message, sendGridResponse.getBody());
-        return Mono.error(new IOException(message));
+    private Mono<Response> sendEmailWithSendGrid(Mail mail) {
+        return Mono.fromCallable(() -> {
+            Request request = new Request();
+            request.setMethod(Method.POST);
+            request.setEndpoint("mail/send");
+            request.setBody(mail.build());
+            return SG.api(request);
+        }).onErrorMap(IOException.class, RuntimeException::new);
     }
 
     @Override
-    public Mono<EmailModel> verifyEmail(String token, String userId) {
-        return emailRepository.findByCodeAndId(token, userId);
-    }
+    public Mono<Object> sendAuthEmail(AuthCreate authCreate) {
+        AuthLog authLog  = new AuthLog(authCreate);
+        Auth    authSave = new Auth(authLog);
+        authLog.generateCode();
 
+        Email   TO      = new Email(authLog.getEmail());
+        String  SUBJECT = "Authorization Code: "+ authLog.getCode();
+        Content CONTENT = new Content("text/html", EmailUtilities.generateSendBody());
+        Mail    mail    = new Mail(FROM, SUBJECT, TO, CONTENT);
+
+        return redisOperations.opsForValue()
+                .set(authLog.getCode(), authSave, Duration.ofMinutes(3))
+                .flatMap(out -> sendEmailWithSendGrid(mail)
+                        .flatMap(sendGridResponse -> {
+                            int statusCode = sendGridResponse.getStatusCode();
+                            boolean success = statusCode >= 200 && statusCode < 300;
+
+                            String message;
+                            if (success) {
+                                message = String.format("AuthLog sent successfully to: %s", authLog.getEmail());
+                                LOGGER.info(message);
+                            } else {
+                                message = String.format("Error sending email: %s", sendGridResponse.getBody());
+                                LOGGER.error(message);
+                            }
+                            authLog.setMessage(message);
+
+                            return emailRepository.save(authLog)
+                                    .then((success) ?
+                                            Mono.just(authLog) :
+                                            Mono.error(new IOException(sendGridResponse.getBody())));
+                        }));
+    }
 }

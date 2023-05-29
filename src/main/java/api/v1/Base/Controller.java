@@ -1,4 +1,4 @@
-package api.v1.base;
+package api.v1.Base;
 
 import api.v1.Utility.APIResponse;
 import org.springframework.web.bind.annotation.GetMapping;
