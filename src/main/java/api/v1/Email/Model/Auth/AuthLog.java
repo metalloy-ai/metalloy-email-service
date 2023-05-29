@@ -1,6 +1,5 @@
 package api.v1.Email.Model.Auth;
 
-import api.v1.Email.Model.Auth.AuthCreate;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Data;
