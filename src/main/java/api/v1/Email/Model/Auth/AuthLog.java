@@ -20,20 +20,20 @@ public class AuthLog extends AuthCreate {
     @Id
     @JsonProperty("_id")
     private String id;
-    private String code;
+    private Integer code;
     private String message;
     private Date created;
 
     public AuthLog(AuthCreate authCreate) {
         this.setUserId(authCreate.getUserId());
         this.setUsername(authCreate.getUsername());
-        this.setRole(authCreate.getRole());
+        this.setUserType(authCreate.getUserType());
         this.setEmail(authCreate.getEmail());
         this.created = new Date();
         this.id = getUserId();
     }
 
     public void generateCode() {
-        this.code = String.valueOf(new Random().nextInt(900000) + 100000);
+        this.code = new Random().nextInt(900000) + 100000;
     }
 }
