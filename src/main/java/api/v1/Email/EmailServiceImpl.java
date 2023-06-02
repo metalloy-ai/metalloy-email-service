@@ -30,14 +30,14 @@ public class EmailServiceImpl implements EmailService {
     private final Logger LOGGER;
     private final Email FROM;
     private final SendGrid SG;
-    private final ReactiveRedisOperations<String, Auth> redisOperations;
+    private final ReactiveRedisOperations<Integer, Auth> redisOperations;
 
     @Autowired
     public EmailServiceImpl (
             EmailRepository emailRepository,
             @Value("${SG.FROM}") String from,
             @Value("${SG.API.KEY}") String apiKey,
-            ReactiveRedisOperations<String, Auth> redisOperations
+            ReactiveRedisOperations<Integer, Auth> redisOperations
     ) {
         LOGGER = LoggerFactory.getLogger(EmailServiceImpl.class);
         FROM   = new Email(from);

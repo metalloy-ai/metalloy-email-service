@@ -26,11 +26,13 @@ public class Auth {
     @NotNull
     @NotEmpty
     @NotBlank
-    private String role;
+    @Field("user_type")
+    @JsonProperty("user_type")
+    private String userType;
 
     public Auth(AuthLog authLog) {
         this.userId = authLog.getUserId();
         this.username = authLog.getUsername();
-        this.role = authLog.getRole();
+        this.userType = authLog.getUserType();
     }
 }
