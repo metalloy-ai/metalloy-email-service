@@ -10,7 +10,7 @@ import lombok.*;
 @AllArgsConstructor
 @NoArgsConstructor
 @EqualsAndHashCode(callSuper = true)
-public class AuthCreate extends Auth {
+public class AuthRequest extends Auth {
     @NotNull
     @NotEmpty
     @NotBlank

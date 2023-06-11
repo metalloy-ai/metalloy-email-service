@@ -9,31 +9,25 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.util.Date;
-import java.util.Random;
 
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
 @EqualsAndHashCode(callSuper = true)
 @Document(collection = "auth")
-public class AuthLog extends AuthCreate {
+public class AuthLog extends AuthRequest {
     @Id
     @JsonProperty("_id")
     private String id;
-    private Integer code;
     private String message;
     private Date created;
 
-    public AuthLog(AuthCreate authCreate) {
-        this.setUserId(authCreate.getUserId());
-        this.setUsername(authCreate.getUsername());
-        this.setUserType(authCreate.getUserType());
-        this.setEmail(authCreate.getEmail());
+    public AuthLog(AuthRequest authRequest) {
+        this.setUserId(authRequest.getUserId());
+        this.setUsername(authRequest.getUsername());
+        this.setRole(authRequest.getRole());
+        this.setEmail(authRequest.getEmail());
         this.created = new Date();
         this.id = getUserId();
-    }
-
-    public void generateCode() {
-        this.code = new Random().nextInt(900000) + 100000;
     }
 }

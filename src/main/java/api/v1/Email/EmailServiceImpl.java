@@ -3,10 +3,10 @@ package api.v1.Email;
 import java.io.IOException;
 import java.time.Duration;
 
-import api.v1.Email.Model.Auth.AuthCreate;
+import api.v1.Email.Model.Auth.AuthResponse;
+import api.v1.Email.Model.Auth.AuthRequest;
 import api.v1.Email.Model.Auth.AuthLog;
 import api.v1.Utility.EmailUtilities;
-import api.v1.Email.Model.Auth.Auth;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -30,14 +30,14 @@ public class EmailServiceImpl implements EmailService {
     private final Logger LOGGER;
     private final Email FROM;
     private final SendGrid SG;
-    private final ReactiveRedisOperations<Integer, Auth> redisOperations;
+    private final ReactiveRedisOperations<String, AuthResponse> redisOperations;
 
     @Autowired
     public EmailServiceImpl (
             EmailRepository emailRepository,
             @Value("${SG.FROM}") String from,
             @Value("${SG.API.KEY}") String apiKey,
-            ReactiveRedisOperations<Integer, Auth> redisOperations
+            ReactiveRedisOperations<String, AuthResponse> redisOperations
     ) {
         LOGGER = LoggerFactory.getLogger(EmailServiceImpl.class);
         FROM   = new Email(from);
@@ -57,18 +57,17 @@ public class EmailServiceImpl implements EmailService {
     }
 
     @Override
-    public Mono<Object> sendAuthEmail(AuthCreate authCreate) {
-        AuthLog authLog  = new AuthLog(authCreate);
-        Auth    authSave = new Auth(authLog);
-        authLog.generateCode();
+    public Mono<Object> sendAuthEmail(AuthRequest authRequest) {
+        AuthResponse authResponse = new AuthResponse(authRequest);
+        AuthLog authLog  = new AuthLog(authRequest);
 
-        Email   TO      = new Email(authLog.getEmail());
-        String  SUBJECT = "Authorization Code: "+ authLog.getCode();
+        Email   TO      = new Email(authRequest.getEmail());
+        String  SUBJECT = "Authorization Code: "+ authResponse.getCode();
         Content CONTENT = new Content("text/html", EmailUtilities.generateSendBody());
         Mail    mail    = new Mail(FROM, SUBJECT, TO, CONTENT);
 
         return redisOperations.opsForValue()
-                .set(authLog.getCode(), authSave, Duration.ofMinutes(3))
+                .set(authResponse.getUsername(), authResponse, Duration.ofMinutes(3))
                 .flatMap(out -> sendEmailWithSendGrid(mail)
                         .flatMap(sendGridResponse -> {
                             int statusCode = sendGridResponse.getStatusCode();
@@ -76,7 +75,7 @@ public class EmailServiceImpl implements EmailService {
 
                             String message;
                             if (success) {
-                                message = String.format("AuthLog sent successfully to: %s", authLog.getEmail());
+                                message = String.format("AuthLog sent successfully to: %s", authRequest.getEmail());
                                 LOGGER.info(message);
                             } else {
                                 message = String.format("Error sending email: %s", sendGridResponse.getBody());
